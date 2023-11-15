@@ -1,16 +1,14 @@
-import sys
-sys.path.append("../../..")
-
 import numpy as np
 import cupy as cp
 import astra
 import trimesh
 import pylops
 from matplotlib import pyplot as plt
-from mesh_projector.projection3D.project_mesh_gpu64 import project_mesh, grad_project_mesh
-from mesh_projector.solvers import quasi_newton, BB
-from mesh_projector.utils.recalculate_normals import recalculate_normals
-from parametric import loop_subdivide
+from mesh_tomography.projection3D.project_mesh_gpu64 import project_mesh, grad_project_mesh
+from mesh_tomography.reconstruction import quasi_newton, BB
+from mesh_tomography.utils.recalculate_normals import recalculate_normals
+from mesh_tomography.utils.subdivision import loop_subdivide
+from mesh_tomography.utils.spheres import generate_sphere
 from tqdm import tqdm
 
 #attenuation = -0.0002791397898305019
@@ -20,12 +18,16 @@ attenuation = -0.00032*2 # times 2 because half resolution
 int_type = np.int64
 float_type = np.float64
 
+n_angles = 40
+angle_inds = np.round(np.linspace(0, 300, n_angles, endpoint=False)).astype(np.int64)
+print(angle_inds)
+
 print("loading sinogram")
-sino = cp.load("data/sino.npy")[::5, :, :].astype(float_type).copy()
+sino = cp.load("data/sino.npy")[angle_inds, :, :].astype(float_type).copy()
 print("done")
 
 angles = np.linspace(0, np.pi, 300, endpoint=False, dtype=float_type)
-angles = angles[::5].copy()
+angles = angles[angle_inds].copy()
 geom_settings = (1, 1, sino.shape[1], sino.shape[2], angles, 50000, 1)
 
 
@@ -46,7 +48,7 @@ rec_shape = ordinary_rec.shape
 rec_size = ordinary_rec.size
 
 # initial guess
-sphere = trimesh.load("data/sphere_div1.stl")
+sphere = generate_sphere(1)
 sphere_vertices = np.asarray(sphere.vertices, dtype=float_type)
 sphere_faces = np.asarray(sphere.faces, dtype=int_type)
 
@@ -75,7 +77,7 @@ control_faces = np.vstack(control_faces)
 print("done")
 
 all_vertices, all_faces, S1 = loop_subdivide(control_vertices, control_faces, return_matrix=True)
-all_vertices, all_faces, S2 = loop_subdivide(all_vertices, all_faces, return_matrix=True) 
+all_vertices, all_faces, S2 = loop_subdivide(all_vertices, all_faces, return_matrix=True)
 S = pylops.MatrixMult(S2) @ pylops.MatrixMult(S1)
 
 def grad_f(x):
@@ -96,7 +98,7 @@ def f(x):
     proj_diff = project_mesh(all_vertices, all_faces, all_normals, *geom_settings)
     proj_diff *= attenuation
     proj_diff -= sino
-    return 1/2*cp.dot(proj_diff.ravel(), proj_diff.ravel())
+    return 1/2*cp.dot(proj_diff.ravel(), proj_diff.ravel()).get()
 
 
 # plot during the iterations
@@ -105,7 +107,7 @@ fig, ax = plt.subplots(1)
 ax.imshow(ordinary_rec[rec_shape[0]//2, :, :], cmap="gray")
 plt.pause(0.1)
 iteration = 0
-np.save(f"data/last_results_60/all_faces", all_faces)
+np.save(f"data/last_results_{n_angles}/all_faces", all_faces)
 def callback(current_solution):
     global iteration
     iteration += 1
@@ -113,7 +115,7 @@ def callback(current_solution):
     ax.imshow(ordinary_rec[rec_shape[0]//2, :, :], cmap="gray")
     fig.suptitle(str(iteration))
     vertices = (S @ current_solution).reshape((-1, 3))
-    np.save(f"data/last_results_60/iterate{iteration}", vertices)
+    np.save(f"data/last_results_{n_angles}/iterate{iteration}", vertices)
     faces = all_faces
     normals = recalculate_normals(vertices, faces)
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, face_normals=normals)
@@ -158,8 +160,10 @@ rec = quasi_newton(
     callback=callback
 )
 
-
-all_vertices = (S @ rec).reshape((-1, 3))
-all_normals = recalculate_normals(all_vertices, all_faces)
-mesh = trimesh.Trimesh(vertices=all_vertices, faces=all_faces, face_normals=all_normals)
-trimesh.exchange.export.export_mesh(mesh, "data/final_reconstruction_60.stl")
+rec = np.split(rec.reshape(-1, 3), n_bubbles)
+for i in range(n_bubbles):
+    vertices, faces = loop_subdivide(rec[i], sphere_faces)
+    vertices, faces = loop_subdivide(vertices, faces)
+    normals = recalculate_normals(vertices, faces)
+    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, face_normals=normals)
+    trimesh.exchange.export.export_mesh(mesh, f"data/rec_{n_angles}/rec_{n_angles}_{i}.stl")

@@ -4,17 +4,17 @@ from matplotlib import pyplot as plt
 from scipy.sparse.linalg import lsqr
 from tqdm import tqdm
 
-# # load sino
-# sino = np.load("data/sino_with_paganin.npy")
+# load sino
+sino = np.load("data/sino_with_paganin.npy")
 
 
-# # create astra optomo operator
-# angles = np.linspace(0, np.pi, sino.shape[0], endpoint=False)
-# vol_geom = astra.create_vol_geom(sino.shape[2], sino.shape[2], sino.shape[1])
-# proj_geom = astra.create_proj_geom('cone', 1, 1, sino.shape[1], sino.shape[2], angles, 50000, 1)
-# proj_id = astra.create_projector('cuda3d', proj_geom, vol_geom)
-# W = astra.optomo.OpTomo(proj_id)
-# p = sino.swapaxes(0,1).ravel()
+# create astra optomo operator
+angles = np.linspace(0, np.pi, sino.shape[0], endpoint=False)
+vol_geom = astra.create_vol_geom(sino.shape[2], sino.shape[2], sino.shape[1])
+proj_geom = astra.create_proj_geom('cone', 1, 1, sino.shape[1], sino.shape[2], angles, 50000, 1)
+proj_id = astra.create_projector('cuda3d', proj_geom, vol_geom)
+W = astra.optomo.OpTomo(proj_id)
+p = sino.swapaxes(0,1).ravel()
 
 
 # load reconstruction
@@ -36,11 +36,11 @@ for z in tqdm(range(bg.shape[0])):
     bg_slice = bg[z, :, :]
     bg_slice[(x-cx)**2 + (y-cy)**2 <= r**2] = 0.00032*2
 
-# p_no_bg = p - W @ bg.ravel()
-# sino_no_bg = p_no_bg.reshape(sino.swapaxes(0,1).shape).swapaxes(0,1)
-# np.save("data/sino", sino_no_bg)
+p_no_bg = p - W @ bg.ravel()
+sino_no_bg = p_no_bg.reshape(sino.swapaxes(0,1).shape).swapaxes(0,1)
+np.save("data/sino", sino_no_bg)
 np.save("data/initial_rec_without_background.npy", rec - bg)
-raise
+
 plt.figure()
 plt.imshow(bg[bg.shape[0]//2,:,:], cmap="gray")
 

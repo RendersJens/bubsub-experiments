@@ -10,7 +10,7 @@ import sys
 
 realisation = sys.argv[1]
 
-phantom = plt.imread("data/phantom512.png")[:, :, 0] > 0.5
+phantom = plt.imread("data/foam.png")[:, :, 0] > 0.5
 vals = list(range(10, 310, 10))
 
 errs = []
@@ -21,31 +21,30 @@ for n_proj in vals:
     lsqr_rec = np.load(f"data/n_proj_experiment_{realisation}/lsqr_rec{n_proj}.npy")
     fbp_rec = np.load(f"data/n_proj_experiment_{realisation}/fbp_rec{n_proj}.npy")
     print("Otsu thresholding")
-    lsqr_tres = threshold_otsu(lsqr_rec)
-    fbp_tres = threshold_otsu(fbp_rec)
+    lsqr_tres = threshold_otsu(np.clip(lsqr_rec, 0, 1/2000))
+    fbp_tres = threshold_otsu(np.clip(fbp_rec, 0, 1/2000))
 
     print("binarizing")
     lsqr_rec = lsqr_rec > lsqr_tres
-    lsqr_rec = binary_opening(lsqr_rec)
+    # lsqr_rec = binary_opening(lsqr_rec)
 
     fbp_rec = fbp_rec > fbp_tres
-    fbp_rec = binary_opening(fbp_rec)
+    # fbp_rec = binary_opening(fbp_rec)
 
-    rec_polys = np.load(f"data/n_proj_experiment_{realisation}/rec{n_proj}.npy")*2
+    rec_polys = np.load(f"data/n_proj_experiment_{realisation}/rec{n_proj}.npy")
     rec = pixelate(
         rec_polys[0],
-        np.array([-phantom.shape[0], phantom.shape[0]]),
-        np.array([-phantom.shape[0], phantom.shape[0]]),
+        np.array([-phantom.shape[0]//2, phantom.shape[0]//2]),
+        np.array([-phantom.shape[0]//2, phantom.shape[0]//2]),
     )*0
     for poly in rec_polys:
         pixel_poly = pixelate(
             poly,
-            np.array([-phantom.shape[0], phantom.shape[0]]),
-            np.array([-phantom.shape[0], phantom.shape[0]]),
+        np.array([-phantom.shape[0]//2, phantom.shape[0]//2]),
+        np.array([-phantom.shape[0]//2, phantom.shape[0]//2]),
         )
         rec += pixel_poly
     rec = np.fliplr(rec.T)
-    rec = block_reduce(rec, (2,2), np.min)
 
     rnmp = np.logical_xor(rec, phantom).sum()/phantom.sum()
     mesh_dice = dice(rec.ravel(), phantom.ravel())

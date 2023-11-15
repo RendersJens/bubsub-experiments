@@ -15,12 +15,12 @@ from mesh_tomography.utils.subdivision import chaikin_subdivide
 from scipy.sparse.linalg import lsqr
 from tqdm import tqdm
 
-attenuation = 1/512
-n_control_points = 7
+attenuation = 1/2000
+n_control_points = 9
 
 sino = np.fliplr(np.load("data/sino.npy"))
 angles = np.linspace(0, np.pi, sino.shape[0], endpoint=False)
-geom_settings = (1, sino.shape[1], angles, 50000, 1)
+geom_settings = (1, 2400, angles, 500000, 1)
 
 
 # create astra optomo operator
@@ -31,11 +31,11 @@ W = astra.optomo.OpTomo(proj_id)
 
 
 # ordinary reconstruction
-rec_shape = (sino.shape[1], sino.shape[1])
-rec_size = sino.shape[1] * sino.shape[1]
+rec_shape = (2000, 2000)
+rec_size = 2000 * 2000
 ordinary_rec = np.load("data/ordinary_reconstruction.npy").T
 
-geom_settings = (1, sino.shape[1], angles, 50000, 1)
+geom_settings = (1, 2400, angles, 500000, 1)
 
 # initial guess
 centers = np.loadtxt("data/centers.txt")
@@ -79,9 +79,9 @@ def g(x):
 def grad_g(x):
     A = d_make_circles(x, n=n_control_points).T
     B =  grad_f(make_circles(x, n=n_control_points))
-    return A @ B  
+    return A @ B
 
-v, S1 = chaikin_subdivide(make_circles(x0, n=n_control_points).reshape((n_bubbles, -1, 2)), return_matrix=True) 
+v, S1 = chaikin_subdivide(make_circles(x0, n=n_control_points).reshape((n_bubbles, -1, 2)), return_matrix=True)
 _, S2 = chaikin_subdivide(v, return_matrix=True)
 S = pylops.MatrixMult(S2) @ pylops.MatrixMult(S1)
 
@@ -163,7 +163,7 @@ rec = BB(
     grad_g,
     x0=x0,
     #H_strat="BFGS",
-    max_iter=15,
+    max_iter=30,
     verbose=True,
     callback=callback2,
 )[0]
@@ -194,7 +194,7 @@ np.save("data/bubble_fit", rec)
 #         callback=callback,
 #     )
 #     rec = rec.reshape((n_bubbles,-1,2))
-        
+
 
 # show result
 plt.ioff()
@@ -217,15 +217,15 @@ pixelation = np.flipud(pixelation)
 
 plt.figure()
 plt.title("bubble fit")
-plt.imshow(np.clip(pixelation,0,1), cmap="gray")  
+plt.imshow(np.clip(pixelation,0,1), cmap="gray")
 
 plt.figure()
 plt.title("ordinary reconstruction")
-plt.imshow(ordinary_rec, cmap="gray")  
+plt.imshow(ordinary_rec, cmap="gray")
 
 plt.figure()
 plt.title("bubble fit labeled")
-plt.imshow(pixelation, cmap="gray")  
+plt.imshow(pixelation, cmap="gray")
 for i, bubble in enumerate(rec):
     bubble = bubble.copy()
     bubble[:, 0] += rec_shape[0]//2

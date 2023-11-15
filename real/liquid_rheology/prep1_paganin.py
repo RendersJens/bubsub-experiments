@@ -15,7 +15,7 @@ y_stop = 2016-100
 
 # data
 nproj = 300
-path = "/path/to/tomobank_foam/"
+path = "/media/jens/Samsung_T5/tomobank_foam/"
 fname = path + "dk_MCFG_1_p_s1_.h5"
 
 print("""

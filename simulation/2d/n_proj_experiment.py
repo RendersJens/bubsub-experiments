@@ -1,6 +1,3 @@
-import sys
-sys.path.append("../../..")
-
 import numpy as np
 import astra
 import pylops
@@ -14,10 +11,11 @@ from simulate_scan import simulate_scan
 from scipy.sparse.linalg import lsqr
 from tqdm import tqdm
 import os
+import sys
 
-attenuation = 1/512
-n_control_points = 7
-I0 = 7e3
+attenuation = 1/2000
+n_control_points = 9
+I0 = 1e4
 realisation = sys.argv[1]
 
 if not os.path.exists(f"data/n_proj_experiment_{realisation}"):
@@ -26,11 +24,11 @@ if not os.path.exists(f"data/n_proj_experiment_{realisation}"):
 for n_proj in range(10, 310, 10):
     sino = np.fliplr(simulate_scan(n_proj=n_proj, I0=I0))
     angles = np.linspace(0, np.pi, sino.shape[0], endpoint=False)
-    geom_settings = (1, sino.shape[1], angles, 50000, 1)
+    geom_settings = (1, 2400, angles, 500000, 1)
 
 
     # create astra optomo operator
-    vol_geom = astra.create_vol_geom(sino.shape[1], sino.shape[1])
+    vol_geom = astra.create_vol_geom(2000, 2000)
     proj_geom = astra.create_proj_geom('fanflat', *geom_settings)
     proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
     W = astra.optomo.OpTomo(proj_id)
@@ -38,14 +36,14 @@ for n_proj in range(10, 310, 10):
 
     # ordinary reconstructions
     lsqr_rec = lsqr(W, np.fliplr(sino).ravel(), iter_lim=20, show=True)[0]
-    lsqr_rec = lsqr_rec.reshape((sino.shape[1], sino.shape[1]))
+    lsqr_rec = lsqr_rec.reshape(2000, 2000)
     np.save(f"data/n_proj_experiment_{realisation}/lsqr_rec{n_proj}", lsqr_rec)
     rec_shape = lsqr_rec.shape
 
     fbp_rec = astra.create_reconstruction("FBP_CUDA", proj_id, np.fliplr(sino))[1]
     np.save(f"data/n_proj_experiment_{realisation}/fbp_rec{n_proj}", fbp_rec)
 
-    geom_settings = (1, sino.shape[1], angles, 50000, 1)
+    geom_settings = (1, 2400, angles, 500000, 1)
 
     # initial guess
     centers = np.loadtxt("data/centers.txt")
@@ -65,9 +63,9 @@ for n_proj in range(10, 310, 10):
     def grad_g(x):
         A = d_make_circles(x, n=n_control_points).T
         B =  grad_f(make_circles(x, n=n_control_points))
-        return A @ B  
+        return A @ B
 
-    v, S1 = chaikin_subdivide(make_circles(x0, n=n_control_points).reshape((n_bubbles, -1, 2)), return_matrix=True) 
+    v, S1 = chaikin_subdivide(make_circles(x0, n=n_control_points).reshape((n_bubbles, -1, 2)), return_matrix=True)
     _, S2 = chaikin_subdivide(v, return_matrix=True)
     S = pylops.MatrixMult(S2) @ pylops.MatrixMult(S1)
 
@@ -88,7 +86,7 @@ for n_proj in range(10, 310, 10):
         grad_g,
         x0=x0,
         #H_strat="BFGS",
-        max_iter=15,
+        max_iter=30,
         verbose=True
     )[0]
 

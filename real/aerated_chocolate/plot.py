@@ -1,5 +1,8 @@
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.style
+import matplotlib as mpl
+mpl.style.use('ggplot')
 
 errors_vol = np.load("data/mean_squared_projection_errors_vol.npy")
 errors_vol_nonneg = np.load("data/mean_squared_projection_errors_vol_nonneg.npy")
@@ -20,7 +23,7 @@ plt.xlabel("Number of projections")
 plt.ylabel("MSE in projection space")
 plt.legend(["Thresholded volume", "Volume", "BubSub"])
 plt.tight_layout()
-plt.savefig("images/luflee_error.pdf")
+plt.savefig("images/luflee_error.eps")
 
 plt.figure(figsize=(4, 3))
 plt.plot(n_angles, errors_vol_tres, "--")
@@ -34,6 +37,6 @@ plt.xlabel("Number of projections")
 plt.ylabel("MSE in projection space")
 plt.legend(["Thresholded volume", "Volume", "BubSub"])
 plt.tight_layout()
-plt.savefig("images/luflee_error_zoom.pdf")
+plt.savefig("images/luflee_error_zoom.eps")
 
 plt.show()
